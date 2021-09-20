@@ -1,7 +1,2 @@
-[package]
-name = "harmony_core"
-version = "0.1.0"
-authors = ["Yusuf Bera Ertan <y.bera003.06@protonmail.com>"]
-edition = "2018"
-
-[dependencies]
+[workspace]
+members = ["crates/*"]
