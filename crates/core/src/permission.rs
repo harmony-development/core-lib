@@ -27,14 +27,14 @@ pub fn compare_permission_depth(perm: &str, other_perm: &str) -> Ordering {
 /// Checks if a permission is allowed in some permission collection.
 ///
 /// Returns `None` if no permissions were matched.
-pub fn has_permission<'a, Perm, I>(perms: I, query: &str) -> Option<bool>
+pub fn has_permission<Matches, I>(perms: I, query: &str) -> Option<bool>
 where
-    Perm: core::borrow::Borrow<(&'a str, bool)>,
-    I: Iterator<Item = Perm>,
+    Matches: AsRef<str>,
+    I: Iterator<Item = (Matches, bool)>,
 {
-    let mut matching_perms = perms.filter(|p| {
-        let (matches, _) = p.borrow();
+    let mut matching_perms = perms.filter(|(matches, _)| {
         matches
+            .as_ref()
             .split('.')
             .zip(query.split('.'))
             .all(|(m, c)| m == "*" || c == m)
@@ -44,97 +44,96 @@ where
 
     for perm in matching_perms {
         let ordering =
-            compare_permission_depth(perm.borrow().0, matched.as_ref().unwrap().borrow().0);
+            compare_permission_depth(perm.0.as_ref(), matched.as_ref().unwrap().0.as_ref());
         if let Ordering::Greater = ordering {
             matched = Some(perm);
         }
     }
 
-    matched.map(|p| p.borrow().1)
+    matched.map(|(_, ok)| ok)
 }
 
 #[cfg(test)]
 mod tests {
     use super::has_permission;
 
+    use core::array::IntoIter;
+
     #[test]
     fn test_perm_compare_equal_allow() {
-        let ok = has_permission([("messages.send", true)].iter(), "messages.send");
+        let ok = has_permission(IntoIter::new([("messages.send", true)]), "messages.send");
         assert_eq!(ok, Some(true));
     }
 
     #[test]
     fn test_perm_compare_equal_deny() {
-        let ok = has_permission(
-            core::array::IntoIter::new([("messages.send", false)]),
-            "messages.send",
-        );
+        let ok = has_permission(IntoIter::new([("messages.send", false)]), "messages.send");
         assert_eq!(ok, Some(false));
     }
 
     #[test]
     fn test_perm_compare_nonequal_allow() {
-        let ok = has_permission([("messages.sendd", true)].iter(), "messages.send");
+        let ok = has_permission(IntoIter::new([("messages.sendd", true)]), "messages.send");
         assert_eq!(ok, None);
     }
 
     #[test]
     fn test_perm_compare_nonequal_deny() {
-        let ok = has_permission([("messages.sendd", false)].iter(), "messages.send");
+        let ok = has_permission(IntoIter::new([("messages.sendd", false)]), "messages.send");
         assert_eq!(ok, None);
     }
 
     #[test]
     fn test_perm_compare_glob_allow() {
-        let perms = [("messages.*", true)];
-        let ok = has_permission(perms.iter(), "messages.send");
+        let perms = IntoIter::new([("messages.*", true)]);
+        let ok = has_permission(perms.clone(), "messages.send");
         assert_eq!(ok, Some(true));
-        let ok = has_permission(perms.iter(), "messages.view");
+        let ok = has_permission(perms.clone(), "messages.view");
         assert_eq!(ok, Some(true));
     }
 
     #[test]
     fn test_perm_compare_glob_deny() {
-        let perms = [("messages.*", false)];
-        let ok = has_permission(perms.iter(), "messages.send");
+        let perms = IntoIter::new([("messages.*", false)]);
+        let ok = has_permission(perms.clone(), "messages.send");
         assert_eq!(ok, Some(false));
-        let ok = has_permission(perms.iter(), "messages.view");
+        let ok = has_permission(perms.clone(), "messages.view");
         assert_eq!(ok, Some(false));
     }
 
     #[test]
     fn test_perm_compare_specific_deny() {
-        let perms = [("messages.*", true), ("messages.send", false)];
-        let ok = has_permission(perms.iter(), "messages.send");
+        let perms = IntoIter::new([("messages.*", true), ("messages.send", false)]);
+        let ok = has_permission(perms, "messages.send");
         assert_eq!(ok, Some(false));
     }
 
     #[test]
     fn test_perm_compare_specific_allow() {
-        let perms = [("messages.*", false), ("messages.send", true)];
-        let ok = has_permission(perms.iter(), "messages.send");
+        let perms = IntoIter::new([("messages.*", false), ("messages.send", true)]);
+        let ok = has_permission(perms, "messages.send");
         assert_eq!(ok, Some(true));
     }
 
     #[test]
     fn test_perm_compare_depth_allow() {
-        let perms = [
+        let perms = IntoIter::new([
             ("messages.*", false),
             ("messages.send", false),
             ("messages.send.send", true),
-        ];
-        let ok = has_permission(perms.iter(), "messages.send.send");
+        ]);
+        let ok = has_permission(perms, "messages.send.send");
         assert_eq!(ok, Some(true));
     }
 
     #[test]
     fn test_perm_compare_depth_deny() {
-        let perms = [
+        let perms = IntoIter::new([
             ("messages.*", true),
             ("messages.send.send", false),
             ("messages.send", true),
-        ];
-        let ok = has_permission(perms.iter(), "messages.send.send");
+        ]);
+        let ok = has_permission(perms, "messages.send.send");
         assert_eq!(ok, Some(false));
     }
 }

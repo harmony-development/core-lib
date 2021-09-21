@@ -1,3 +1,8 @@
+#![no_std]
+extern crate alloc;
+use alloc::{string::String, vec::Vec};
+
+use harmony_core as hcore;
 use js_sys::{Array, Uint8Array};
 use wasm_bindgen::{prelude::*, JsCast};
 
@@ -54,10 +59,7 @@ pub fn has_permission(permissions: PermissionArray, query: &str) -> Result<Optio
         },
     )?;
 
-    Ok(harmony_core::permission::has_permission(
-        perms.iter().map(|(m, o)| (m.as_str(), *o)),
-        query,
-    ))
+    Ok(hcore::permission::has_permission(perms.into_iter(), query))
 }
 
 #[wasm_bindgen]
@@ -65,7 +67,7 @@ pub fn encode_rgb(color: RgbColor) -> Result<i32, JsValue> {
     let array: Uint8Array = color
         .dyn_into()
         .map_err(|_| "value not of type '[uint8, uint8, uint8]'")?;
-    Ok(harmony_core::color::encode_rgb([
+    Ok(hcore::color::encode_rgb([
         array.get_index(0),
         array.get_index(1),
         array.get_index(2),
@@ -74,7 +76,7 @@ pub fn encode_rgb(color: RgbColor) -> Result<i32, JsValue> {
 
 #[wasm_bindgen]
 pub fn decode_rgb(color: i32) -> RgbColor {
-    let decoded = harmony_core::color::decode_rgb(color);
+    let decoded = hcore::color::decode_rgb(color);
     Uint8Array::from(decoded.as_ref()).unchecked_into()
 }
 
