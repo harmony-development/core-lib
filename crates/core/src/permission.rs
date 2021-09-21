@@ -1,5 +1,5 @@
 //! Types and functions for working with permissions.
-use std::cmp::Ordering;
+use core::cmp::Ordering;
 
 /// Compares two permission `matches` and calculates which one takes priority over other.
 pub fn compare_permission_depth(perm: &str, other_perm: &str) -> Ordering {
@@ -29,26 +29,28 @@ pub fn compare_permission_depth(perm: &str, other_perm: &str) -> Ordering {
 /// Returns `None` if no permissions were matched.
 pub fn has_permission<'a, Perm, I>(perms: I, query: &str) -> Option<bool>
 where
-    Perm: std::borrow::Borrow<(&'a str, bool)>,
+    Perm: core::borrow::Borrow<(&'a str, bool)>,
     I: Iterator<Item = Perm>,
 {
-    let mut matching_perms = perms
-        .filter(|p| {
-            let (matches, _) = p.borrow();
-            matches
-                .split('.')
-                .zip(query.split('.'))
-                .all(|(m, c)| m == "*" || c == m)
-        })
-        .collect::<Vec<_>>();
-
-    matching_perms.sort_unstable_by(|p, op| {
-        let (m, _) = p.borrow();
-        let (om, _) = op.borrow();
-        compare_permission_depth(m, om)
+    let mut matching_perms = perms.filter(|p| {
+        let (matches, _) = p.borrow();
+        matches
+            .split('.')
+            .zip(query.split('.'))
+            .all(|(m, c)| m == "*" || c == m)
     });
 
-    matching_perms.pop().map(|p| p.borrow().1)
+    let mut matched = matching_perms.next();
+
+    for perm in matching_perms {
+        let ordering =
+            compare_permission_depth(perm.borrow().0, matched.as_ref().unwrap().borrow().0);
+        if let Ordering::Greater = ordering {
+            matched = Some(perm);
+        }
+    }
+
+    matched.map(|p| p.borrow().1)
 }
 
 #[cfg(test)]
@@ -64,7 +66,7 @@ mod tests {
     #[test]
     fn test_perm_compare_equal_deny() {
         let ok = has_permission(
-            std::array::IntoIter::new([("messages.send", false)]),
+            core::array::IntoIter::new([("messages.send", false)]),
             "messages.send",
         );
         assert_eq!(ok, Some(false));
@@ -129,8 +131,8 @@ mod tests {
     fn test_perm_compare_depth_deny() {
         let perms = [
             ("messages.*", true),
-            ("messages.send", true),
             ("messages.send.send", false),
+            ("messages.send", true),
         ];
         let ok = has_permission(perms.iter(), "messages.send.send");
         assert_eq!(ok, Some(false));

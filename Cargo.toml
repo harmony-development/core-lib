@@ -3,6 +3,7 @@ members = ["crates/*"]
 
 [profile.release]
 lto = "fat"
+panic = "abort"
 
 [profile.release.package.harmony_wasm]
 opt-level = "s"
