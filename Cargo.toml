@@ -1,2 +1,8 @@
 [workspace]
 members = ["crates/*"]
+
+[profile.release]
+lto = "fat"
+
+[profile.release.package.harmony_wasm]
+opt-level = "s"
